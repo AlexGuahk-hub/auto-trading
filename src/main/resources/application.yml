@@ -1,0 +1,60 @@
+# ── KIS (주식) ──
+kis:
+  app-key: ${KIS_APP_KEY}
+  app-secret: ${KIS_APP_SECRET}
+  account-no: ${KIS_ACCOUNT_NO}
+  account-product-code: "01"
+  base-url: ${KIS_BASE_URL:https://openapivts.koreainvestment.com:29443}
+  is-paper: ${KIS_IS_PAPER:true}
+
+# ── 업비트 (코인) ──
+upbit:
+  access-key: ${UPBIT_ACCESS_KEY}
+  secret-key: ${UPBIT_SECRET_KEY}
+  base-url: https://api.upbit.com
+
+# ── 공통 매매 설정 ──
+trading:
+  stocks:
+    - "005930"    # 삼성전자
+    - "000660"    # SK하이닉스
+    - "035420"    # NAVER
+  stock-order-quantity: 1
+
+  coins:
+    - "KRW-BTC"   # 비트코인
+    - "KRW-ETH"   # 이더리움
+    - "KRW-XRP"   # 리플
+  coin-order-amount-krw: 10000
+
+  stop-loss-ratio: 0.03
+  daily-loss-limit: 0.05
+  max-position-ratio: 0.10
+
+# ── 텔레그램 ──
+telegram:
+  bot-token: ${TELEGRAM_BOT_TOKEN}
+  chat-id: ${TELEGRAM_CHAT_ID}
+
+# ── Spring ──
+spring:
+  datasource:
+    url: jdbc:postgresql://postgres:5432/trading
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+  redis:
+    host: redis
+    port: 6379
+  data:
+    redis:
+      repositories:
+        enabled: false
+
+# ── 스케줄러 활성화 ──
+scheduling:
+  enabled: true
