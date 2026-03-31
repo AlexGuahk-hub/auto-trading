@@ -9,6 +9,7 @@ import org.springframework.web.reactive.function.client.WebClient;
 
 import java.time.Duration;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 @Slf4j
@@ -19,6 +20,9 @@ public class KisTokenService {
     private final RedisTemplate<String, String> redisTemplate;
     private static final String TOKEN_KEY = "kis:access_token";
 
+    // Redis 연결 실패 시 폴백용 인메모리 캐시
+    private final Map<String, String> memoryCache = new ConcurrentHashMap<>();
+
     public KisTokenService(KisProperties props,
                            @Qualifier("kisWebClient") WebClient kisWebClient,
                            RedisTemplate<String, String> redisTemplate) {
@@ -28,7 +32,7 @@ public class KisTokenService {
     }
 
     public String getAccessToken() {
-        String cached = redisTemplate.opsForValue().get(TOKEN_KEY);
+        String cached = getFromCache();
         if (cached != null) return cached;
 
         Map<String, String> body = Map.of(
@@ -48,14 +52,36 @@ public class KisTokenService {
             throw new IllegalStateException("KIS 토큰 발급 실패: 응답이 null");
         }
 
-        // 만료 30분 전 갱신을 위해 23시간만 캐싱
-        redisTemplate.opsForValue().set(TOKEN_KEY, resp.getAccessToken(), Duration.ofHours(23));
+        saveToCache(resp.getAccessToken());
         log.info("KIS 액세스 토큰 발급 완료");
         return resp.getAccessToken();
     }
 
     public void invalidateToken() {
-        redisTemplate.delete(TOKEN_KEY);
+        try {
+            redisTemplate.delete(TOKEN_KEY);
+        } catch (Exception e) {
+            log.warn("Redis 삭제 실패: {}", e.getMessage());
+        }
+        memoryCache.remove(TOKEN_KEY);
         log.info("KIS 토큰 캐시 삭제");
+    }
+
+    private String getFromCache() {
+        try {
+            return redisTemplate.opsForValue().get(TOKEN_KEY);
+        } catch (Exception e) {
+            log.warn("Redis 조회 실패, 메모리 캐시 사용: {}", e.getMessage());
+            return memoryCache.get(TOKEN_KEY);
+        }
+    }
+
+    private void saveToCache(String token) {
+        try {
+            redisTemplate.opsForValue().set(TOKEN_KEY, token, Duration.ofHours(23));
+        } catch (Exception e) {
+            log.warn("Redis 저장 실패, 메모리 캐시에 저장: {}", e.getMessage());
+            memoryCache.put(TOKEN_KEY, token);
+        }
     }
 }
