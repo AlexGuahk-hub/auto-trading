@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   trading-app:
-    image: ghcr.io/${GITHUB_REPOSITORY:-my-org/auto-trading}:latest
+    image: ghcr.io/alexguahk-hub/auto-trading:latest
     restart: always
     ports:
       - "8080:8080"
