@@ -17,6 +17,21 @@ spring:
       repositories:
         enabled: false
 
+trading:
+  stocks:
+    - "005930"
+    - "000660"
+    - "035420"
+  stock-order-quantity: 1
+  coins:
+    - "KRW-BTC"
+    - "KRW-ETH"
+    - "KRW-XRP"
+  coin-order-amount-krw: 10000
+  stop-loss-ratio: 0.03
+  daily-loss-limit: 0.05
+  max-position-ratio: 0.10
+
 logging:
   level:
     com.trading: INFO
