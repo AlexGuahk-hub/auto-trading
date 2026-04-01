@@ -33,7 +33,7 @@ import java.util.Map;
 @RequestMapping("/test")
 @RequiredArgsConstructor
 @Slf4j
-@Profile("local")
+@Profile({"local", "prod"})
 public class ApiTestController {
 
     private final KisTokenService kisTokenService;
