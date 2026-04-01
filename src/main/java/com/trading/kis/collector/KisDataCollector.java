@@ -26,6 +26,10 @@ public class KisDataCollector {
         watchList.forEach(code -> {
             try {
                 StockPriceDto price = stockService.getCurrentPrice(code);
+                if (price == null) {
+                    log.warn("[KIS] 시세 조회 null: {}", code);
+                    return;
+                }
                 log.debug("[KIS] 시세 수집: {} - {}원", code, price.getCurrentPrice());
                 Thread.sleep(200); // KIS Rate Limit: 초당 5회 제한
             } catch (InterruptedException e) {

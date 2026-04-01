@@ -72,7 +72,10 @@ public class UpbitOrderService {
                 .retrieve()
                 .onStatus(HttpStatusCode::is4xxClientError, r ->
                         r.bodyToMono(String.class)
-                                .map(body -> new RuntimeException("[업비트] 주문 오류: " + body)))
+                                .map(body -> new RuntimeException("[업비트] 주문 오류(4xx): " + body)))
+                .onStatus(HttpStatusCode::is5xxServerError, r ->
+                        r.bodyToMono(String.class)
+                                .map(body -> new RuntimeException("[업비트] 서버 오류(5xx): " + body)))
                 .bodyToMono(UpbitOrderResponse.class)
                 .block();
 

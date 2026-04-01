@@ -2,6 +2,7 @@ package com.trading.upbit.scheduler;
 
 import com.trading.common.RiskCheckResult;
 import com.trading.common.TradeSignal;
+import com.trading.common.TradingStateManager;
 import com.trading.risk.RiskManager;
 import com.trading.upbit.market.CoinPriceDto;
 import com.trading.upbit.market.UpbitMarketService;
@@ -23,6 +24,7 @@ public class UpbitTradingScheduler {
     private final UpbitMarketService marketService;
     private final UpbitOrderService orderService;
     private final RiskManager riskManager;
+    private final TradingStateManager stateManager;
 
     @Value("${trading.coins}")
     private List<String> coins;
@@ -33,6 +35,10 @@ public class UpbitTradingScheduler {
     // 5분마다 전략 실행 (24시간 365일 — 코인은 시간 제한 없음)
     @Scheduled(fixedDelay = 300_000)
     public void runStrategy() {
+        if (!stateManager.isUpbitEnabled()) {
+            log.debug("[업비트] 자동매매 중지 상태 — 실행 건너뜀");
+            return;
+        }
         log.info("[업비트] 자동매매 전략 실행");
         coins.forEach(market -> {
             try {

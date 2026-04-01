@@ -26,6 +26,10 @@ public class UpbitDataCollector {
         coins.forEach(market -> {
             try {
                 CoinPriceDto price = marketService.getCurrentPrice(market);
+                if (price == null) {
+                    log.warn("[업비트] 시세 조회 null: {}", market);
+                    return;
+                }
                 log.debug("[업비트] 시세 수집: {} - {}원", market, price.getCurrentPrice());
                 Thread.sleep(150); // 업비트 Rate Limit 준수
             } catch (InterruptedException e) {

@@ -16,10 +16,15 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Component
 @Slf4j
 public class RiskManager {
+
+    // 당일 실현 손실 누적 (서버 재시작 시 초기화됨)
+    private final Map<String, BigDecimal> dailyLossMap = new ConcurrentHashMap<>();
 
     @Value("${trading.stop-loss-ratio}")
     private double stopLossRatio;
@@ -106,6 +111,9 @@ public class RiskManager {
                     String msg = String.format("[KIS 손절] %s 손실률 %.1f%%", h.getStockCode(), lossRatio * 100);
                     log.warn(msg);
                     notifier.sendErrorAlert(msg);
+                    // 손실 금액 누적 (평균가 - 현재가) * 수량
+                    long lossAmount = (long) ((h.getAvgPrice() - h.getCurrentPrice()) * (long) h.getQuantity());
+                    dailyLossMap.merge("KIS", BigDecimal.valueOf(lossAmount), BigDecimal::add);
                     kisOrderService.sellMarket(h.getStockCode(), h.getQuantity());
                 }
             });
@@ -134,6 +142,10 @@ public class RiskManager {
                             String msg = String.format("[업비트 손절] %s 손실률 %.1f%%", market, lossRatio * 100);
                             log.warn(msg);
                             notifier.sendErrorAlert(msg);
+                            // 손실 금액 누적 (평균가 - 현재가) * 수량
+                            double volume = parseDoubleSafe(b.getBalance());
+                            BigDecimal lossAmount = BigDecimal.valueOf((avgPrice - current.getCurrentPrice()) * volume);
+                            dailyLossMap.merge("UPBIT", lossAmount, BigDecimal::add);
                             upbitOrderService.sellMarket(market, new BigDecimal(b.getBalance()));
                         }
                     });
@@ -151,8 +163,47 @@ public class RiskManager {
         }
     }
 
+    // 자정에 일일 손실 초기화
+    @Scheduled(cron = "0 0 0 * * *", zone = "Asia/Seoul")
+    public void resetDailyLoss() {
+        dailyLossMap.clear();
+        log.info("[리스크] 일일 손실 초기화");
+    }
+
     private boolean isDailyLossExceeded(String exchange) {
-        // TODO: 오늘 실현 손실 합산 로직 (DB에서 trade_order 집계)
+        BigDecimal totalLoss = dailyLossMap.getOrDefault(exchange, BigDecimal.ZERO);
+        if (totalLoss.compareTo(BigDecimal.ZERO) == 0) return false;
+
+        try {
+            double referenceAsset = getReferenceAsset(exchange);
+            if (referenceAsset <= 0) return false;
+            double lossRatio = totalLoss.doubleValue() / referenceAsset;
+            if (lossRatio > dailyLossLimit) {
+                log.warn("[리스크] {} 일일 손실 한도 초과: {:.1f}% (한도 {:.1f}%)",
+                        exchange, lossRatio * 100, dailyLossLimit * 100);
+                return true;
+            }
+        } catch (Exception e) {
+            log.warn("[리스크] 일일 손실 비율 계산 실패 ({}): {}", exchange, e.getMessage());
+        }
         return false;
+    }
+
+    private double getReferenceAsset(String exchange) {
+        if ("KIS".equals(exchange)) {
+            AccountBalanceDto balance = kisService.getAccountBalance();
+            return balance != null ? (double) balance.getTotalAsset() : 0;
+        } else {
+            return upbitService.getBalances().stream()
+                    .mapToDouble(b -> {
+                        if ("KRW".equals(b.getCurrency())) {
+                            return parseDoubleSafe(b.getBalance());
+                        }
+                        CoinPriceDto price = upbitService.getCurrentPrice("KRW-" + b.getCurrency());
+                        if (price == null) return 0;
+                        return parseDoubleSafe(b.getBalance()) * price.getCurrentPrice();
+                    })
+                    .sum();
+        }
     }
 }
