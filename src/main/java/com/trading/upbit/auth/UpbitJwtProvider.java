@@ -47,7 +47,7 @@ public class UpbitJwtProvider {
         }
         return Jwts.builder()
                 .claims(claims)
-                .signWith(Keys.hmacShaKeyFor(props.getSecretKey().getBytes(StandardCharsets.UTF_8)))
+                .signWith(Keys.hmacShaKeyFor(props.getSecretKey().getBytes(StandardCharsets.UTF_8)), Jwts.SIG.HS256)
                 .compact();
     }
 
