@@ -2,6 +2,8 @@ package com.trading.kis.collector;
 
 import com.trading.kis.market.KisStockService;
 import com.trading.kis.market.StockPriceDto;
+import com.trading.kis.market.StockPriceEntity;
+import com.trading.kis.market.StockPriceRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -16,6 +18,7 @@ import java.util.List;
 public class KisDataCollector {
 
     private final KisStockService stockService;
+    private final StockPriceRepository priceRepository;
 
     @Value("${trading.stocks}")
     private List<String> watchList;
@@ -30,6 +33,7 @@ public class KisDataCollector {
                     log.warn("[KIS] 시세 조회 null: {}", code);
                     return;
                 }
+                priceRepository.save(StockPriceEntity.from(price));
                 log.debug("[KIS] 시세 수집: {} - {}원", code, price.getCurrentPrice());
                 Thread.sleep(200); // KIS Rate Limit: 초당 5회 제한
             } catch (InterruptedException e) {
