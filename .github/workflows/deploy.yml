@@ -1,4 +1,4 @@
-name: Deploy to DigitalOcean
+name: Deploy to AWS
 
 on:
   push:
@@ -39,14 +39,14 @@ jobs:
           push: true
           tags: ${{ steps.image.outputs.name }}
 
-      - name: Deploy to DigitalOcean
+      - name: Deploy to AWS
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.DO_HOST }}
-          username: root
+          username: ubuntu
           key: ${{ secrets.DO_SSH_KEY }}
           script: |
-            cd /root/auto-trading
+            cd ~/auto-trading
             docker-compose pull trading-app
             docker-compose up -d --no-deps trading-app
             docker image prune -f
