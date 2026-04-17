@@ -37,8 +37,8 @@ public class KisTradingScheduler {
     @Value("${trading.stock-order-quantity}")
     private int orderQuantity;
 
-    // 장중 5분마다 전략 실행 (09:05~15:20, 마감 10분 전 종료)
-    @Scheduled(cron = "0 5-20/5 9-14,15 * * MON-FRI", zone = "Asia/Seoul")
+    // 장중 2분마다 전략 실행 (09:02~15:20, 단타 대응)
+    @Scheduled(cron = "0 2-20/2 9-14,15 * * MON-FRI", zone = "Asia/Seoul")
     public void runStrategy() {
         if (!stateManager.isKisEnabled()) {
             log.debug("[KIS] 자동매매 중지 상태 — 실행 건너뜀");
@@ -59,14 +59,12 @@ public class KisTradingScheduler {
     }
 
     private void analyzeAndTrade(String stockCode) {
-        // DB에서 최근 60개 시세 조회 (전략 계산에 필요한 충분한 데이터)
-        List<StockPriceEntity> recent = priceRepository.findRecentByCode(stockCode, 60);
-        if (recent.size() < 20) {
-            log.debug("[KIS] 데이터 부족 [{}]: {}개 (최소 20개 필요)", stockCode, recent.size());
+        List<StockPriceEntity> recent = priceRepository.findRecentByCode(stockCode, 30);
+        if (recent.size() < 15) {
+            log.debug("[KIS] 데이터 부족 [{}]: {}개", stockCode, recent.size());
             return;
         }
 
-        // 시간순 정렬 (findRecentByCode는 DESC 반환) → 전략은 오름차순 필요
         List<PriceDto> prices = recent.stream()
                 .sorted((a, b) -> a.getCollectedAt().compareTo(b.getCollectedAt()))
                 .map(e -> PriceDto.builder()
@@ -81,31 +79,36 @@ public class KisTradingScheduler {
 
         long currentPrice = (long) prices.get(prices.size() - 1).getCurrentPrice();
 
-        for (TradingStrategy strategy : strategies) {
-            TradeSignal signal = strategy.analyze(stockCode, prices);
-            if (signal == TradeSignal.HOLD) continue;
+        // 모든 전략 신호 수집 — SELL 최우선, 그 다음 BUY (1틱에 주문 1건)
+        TradeSignal finalSignal = strategies.stream()
+                .map(s -> s.analyze(stockCode, prices))
+                .reduce(TradeSignal.HOLD, (acc, s) -> {
+                    if (acc == TradeSignal.SELL || s == TradeSignal.SELL) return TradeSignal.SELL;
+                    if (s == TradeSignal.BUY) return TradeSignal.BUY;
+                    return acc;
+                });
 
-            RiskCheckResult risk = riskManager.checkOrder(stockCode, orderQuantity, currentPrice);
-            if (!risk.isApproved()) {
-                log.warn("[KIS] 리스크 거부 [{}]: {}", stockCode, risk.getReason());
-                continue;
-            }
+        if (finalSignal == TradeSignal.HOLD) return;
 
-            if (signal == TradeSignal.BUY) {
-                orderService.buyMarket(stockCode, orderQuantity);
-            } else {
-                // 실제 보유 수량 확인 후 매도 (없는 주식 매도 방지)
-                try {
-                    AccountBalanceDto balance = stockService.getAccountBalance();
-                    if (balance != null && balance.getHoldings() != null) {
-                        balance.getHoldings().stream()
-                            .filter(h -> stockCode.equals(h.getStockCode()) && h.getQuantity() > 0)
-                            .findFirst()
-                            .ifPresent(h -> orderService.sellMarket(stockCode, h.getQuantity()));
-                    }
-                } catch (Exception e) {
-                    log.error("[KIS] 잔고 조회 실패로 매도 취소 [{}]: {}", stockCode, e.getMessage());
+        RiskCheckResult risk = riskManager.checkOrder(stockCode, orderQuantity, currentPrice);
+        if (!risk.isApproved()) {
+            log.warn("[KIS] 리스크 거부 [{}]: {}", stockCode, risk.getReason());
+            return;
+        }
+
+        if (finalSignal == TradeSignal.BUY) {
+            orderService.buyMarket(stockCode, orderQuantity);
+        } else {
+            try {
+                AccountBalanceDto balance = stockService.getAccountBalance();
+                if (balance != null && balance.getHoldings() != null) {
+                    balance.getHoldings().stream()
+                        .filter(h -> stockCode.equals(h.getStockCode()) && h.getQuantity() > 0)
+                        .findFirst()
+                        .ifPresent(h -> orderService.sellMarket(stockCode, h.getQuantity()));
                 }
+            } catch (Exception e) {
+                log.error("[KIS] 잔고 조회 실패로 매도 취소 [{}]: {}", stockCode, e.getMessage());
             }
         }
     }
