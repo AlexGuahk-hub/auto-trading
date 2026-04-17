@@ -11,4 +11,6 @@ public interface OrderRepository extends JpaRepository<OrderEntity, Long> {
 
     List<OrderEntity> findByExchangeAndCreatedAtBetween(
             String exchange, LocalDateTime from, LocalDateTime to);
+
+    List<OrderEntity> findByCreatedAtBetween(LocalDateTime from, LocalDateTime to);
 }
