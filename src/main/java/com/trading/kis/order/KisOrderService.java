@@ -61,39 +61,62 @@ public class KisOrderService {
         );
 
         final String finalTrId = trId;
-        KisOrderResponse resp = kisWebClient.post()
-                .uri("/uapi/domestic-stock/v1/trading/order-cash")
-                .headers(h -> {
-                    h.set("authorization", "Bearer " + tokenService.getAccessToken());
-                    h.set("appkey", props.getAppKey());
-                    h.set("appsecret", props.getAppSecret());
-                    h.set("tr_id", finalTrId);
-                    h.set("custtype", "P");
-                })
-                .bodyValue(body)
-                .retrieve()
-                .bodyToMono(KisOrderResponse.class)
-                .block();
+        try {
+            KisOrderResponse resp = kisWebClient.post()
+                    .uri("/uapi/domestic-stock/v1/trading/order-cash")
+                    .headers(h -> {
+                        h.set("authorization", "Bearer " + tokenService.getAccessToken());
+                        h.set("appkey", props.getAppKey());
+                        h.set("appsecret", props.getAppSecret());
+                        h.set("tr_id", finalTrId);
+                        h.set("custtype", "P");
+                    })
+                    .bodyValue(body)
+                    .retrieve()
+                    .bodyToMono(KisOrderResponse.class)
+                    .block();
 
-        if (resp == null) {
-            log.error("[KIS] 주문 응답 null: {} {} {}주", side, stockCode, quantity);
+            if (resp == null) {
+                String msg = String.format("[KIS] 주문 응답 없음: %s %s %d주", side, stockCode, quantity);
+                log.error(msg);
+                notifier.sendErrorAlert(msg);
+                return OrderResult.builder()
+                        .exchange("KIS").market(stockCode).side(side)
+                        .quantity(quantity).success(false).build();
+            }
+
+            if (!"0".equals(resp.getRtCd())) {
+                String msg = String.format("[KIS] 주문 거부 [%s] %s %d주\n원인: %s (코드: %s)",
+                        stockCode, side, quantity, resp.getMsg1(), resp.getMsgCd());
+                log.error(msg);
+                notifier.sendErrorAlert(msg);
+                return OrderResult.builder()
+                        .exchange("KIS").market(stockCode).side(side)
+                        .quantity(quantity).success(false).build();
+            }
+
+            String orderId = (resp.getOutput() != null) ? resp.getOutput().getKstnOrdno() : null;
+            OrderResult result = OrderResult.builder()
+                    .exchange("KIS")
+                    .market(stockCode)
+                    .side(side)
+                    .quantity(quantity)
+                    .orderId(orderId)
+                    .success(true)
+                    .build();
+
+            notifier.sendOrderNotification(result);
+            log.info("[KIS] 주문: {} {} {}주 - orderId: {}", side, stockCode, quantity, orderId);
+            return result;
+
+        } catch (Exception e) {
+            String msg = String.format("[KIS] 주문 API 오류: %s %s %d주\n원인: %s",
+                    side, stockCode, quantity, e.getMessage());
+            log.error(msg, e);
+            notifier.sendErrorAlert(msg);
             return OrderResult.builder()
                     .exchange("KIS").market(stockCode).side(side)
                     .quantity(quantity).success(false).build();
         }
-
-        String orderId = (resp.getOutput() != null) ? resp.getOutput().getKstnOrdno() : null;
-        OrderResult result = OrderResult.builder()
-                .exchange("KIS")
-                .market(stockCode)
-                .side(side)
-                .quantity(quantity)
-                .orderId(orderId)
-                .success("0".equals(resp.getRtCd()))
-                .build();
-
-        notifier.sendOrderNotification(result);
-        log.info("[KIS] 주문: {} {} {}주 - orderId: {}", side, stockCode, quantity, orderId);
-        return result;
     }
 }

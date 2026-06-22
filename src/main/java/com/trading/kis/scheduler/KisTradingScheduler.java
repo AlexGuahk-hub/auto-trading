@@ -10,6 +10,7 @@ import com.trading.kis.market.KisStockService;
 import com.trading.kis.market.StockPriceEntity;
 import com.trading.kis.market.StockPriceRepository;
 import com.trading.kis.order.KisOrderService;
+import com.trading.notification.TelegramNotifier;
 import com.trading.risk.RiskManager;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -30,6 +31,7 @@ public class KisTradingScheduler {
     private final StockPriceRepository priceRepository;
     private final List<TradingStrategy> strategies;
     private final TradingStateManager stateManager;
+    private final TelegramNotifier notifier;
 
     @Value("${trading.stocks}")
     private List<String> watchList;
@@ -54,6 +56,7 @@ public class KisTradingScheduler {
                 log.error("[KIS] 전략 실행 중단: {}", code);
             } catch (Exception e) {
                 log.error("[KIS] 전략 실행 오류: {}", code, e);
+                notifier.sendErrorAlert(String.format("[KIS] 전략 실행 오류 [%s]\n원인: %s", code, e.getMessage()));
             }
         });
     }
@@ -109,6 +112,7 @@ public class KisTradingScheduler {
                 }
             } catch (Exception e) {
                 log.error("[KIS] 잔고 조회 실패로 매도 취소 [{}]: {}", stockCode, e.getMessage());
+                notifier.sendErrorAlert(String.format("[KIS] 잔고 조회 실패로 매도 취소 [%s]\n원인: %s", stockCode, e.getMessage()));
             }
         }
     }

@@ -3,6 +3,7 @@ package com.trading.upbit.scheduler;
 import com.trading.common.RiskCheckResult;
 import com.trading.common.TradeSignal;
 import com.trading.common.TradingStateManager;
+import com.trading.notification.TelegramNotifier;
 import com.trading.risk.RiskManager;
 import com.trading.upbit.market.CoinPriceDto;
 import com.trading.upbit.market.UpbitMarketService;
@@ -25,6 +26,7 @@ public class UpbitTradingScheduler {
     private final UpbitOrderService orderService;
     private final RiskManager riskManager;
     private final TradingStateManager stateManager;
+    private final TelegramNotifier notifier;
 
     @Value("${trading.coins}")
     private List<String> coins;
@@ -49,6 +51,7 @@ public class UpbitTradingScheduler {
                 log.error("[업비트] 전략 실행 중단: {}", market);
             } catch (Exception e) {
                 log.error("[업비트] 전략 실행 오류: {}", market, e);
+                notifier.sendErrorAlert(String.format("[업비트] 전략 실행 오류 [%s]\n원인: %s", market, e.getMessage()));
             }
         });
     }

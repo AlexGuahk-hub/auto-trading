@@ -62,39 +62,51 @@ public class UpbitOrderService {
 
     private OrderResult placeOrder(String market, String side,
                                    MultiValueMap<String, String> params) {
-        // 파라미터 기반 JWT 생성 — 업비트는 매 요청마다 새로 생성 (캐싱 불가)
-        String jwt = jwtProvider.createToken(params);
+        try {
+            // 파라미터 기반 JWT 생성 — 업비트는 매 요청마다 새로 생성 (캐싱 불가)
+            String jwt = jwtProvider.createToken(params);
 
-        UpbitOrderResponse resp = upbitWebClient.post()
-                .uri("/v1/orders")
-                .header("Authorization", "Bearer " + jwt)
-                .bodyValue(params.toSingleValueMap())
-                .retrieve()
-                .onStatus(HttpStatusCode::is4xxClientError, r ->
-                        r.bodyToMono(String.class)
-                                .map(body -> new RuntimeException("[업비트] 주문 오류(4xx): " + body)))
-                .onStatus(HttpStatusCode::is5xxServerError, r ->
-                        r.bodyToMono(String.class)
-                                .map(body -> new RuntimeException("[업비트] 서버 오류(5xx): " + body)))
-                .bodyToMono(UpbitOrderResponse.class)
-                .block();
+            UpbitOrderResponse resp = upbitWebClient.post()
+                    .uri("/v1/orders")
+                    .header("Authorization", "Bearer " + jwt)
+                    .bodyValue(params.toSingleValueMap())
+                    .retrieve()
+                    .onStatus(HttpStatusCode::is4xxClientError, r ->
+                            r.bodyToMono(String.class)
+                                    .map(body -> new RuntimeException("[업비트] 주문 오류(4xx): " + body)))
+                    .onStatus(HttpStatusCode::is5xxServerError, r ->
+                            r.bodyToMono(String.class)
+                                    .map(body -> new RuntimeException("[업비트] 서버 오류(5xx): " + body)))
+                    .bodyToMono(UpbitOrderResponse.class)
+                    .block();
 
-        if (resp == null) {
-            log.error("[업비트] 주문 응답 null: {} {}", side, market);
+            if (resp == null) {
+                String msg = String.format("[업비트] 주문 응답 없음: %s %s", side, market);
+                log.error(msg);
+                notifier.sendErrorAlert(msg);
+                return OrderResult.builder()
+                        .exchange("UPBIT").market(market).side(side).success(false).build();
+            }
+
+            OrderResult result = OrderResult.builder()
+                    .exchange("UPBIT")
+                    .market(market)
+                    .side(side)
+                    .orderId(resp.getUuid())
+                    .success(resp.getUuid() != null)
+                    .build();
+
+            notifier.sendOrderNotification(result);
+            log.info("[업비트] 주문: {} {} - uuid: {}", side, market, resp.getUuid());
+            return result;
+
+        } catch (Exception e) {
+            String msg = String.format("[업비트] 주문 API 오류: %s %s\n원인: %s",
+                    side, market, e.getMessage());
+            log.error(msg, e);
+            notifier.sendErrorAlert(msg);
             return OrderResult.builder()
                     .exchange("UPBIT").market(market).side(side).success(false).build();
         }
-
-        OrderResult result = OrderResult.builder()
-                .exchange("UPBIT")
-                .market(market)
-                .side(side)
-                .orderId(resp.getUuid())
-                .success(resp.getUuid() != null)
-                .build();
-
-        notifier.sendOrderNotification(result);
-        log.info("[업비트] 주문: {} {} - uuid: {}", side, market, resp.getUuid());
-        return result;
     }
 }
