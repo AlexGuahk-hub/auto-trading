@@ -51,6 +51,16 @@ services:
     volumes:
       - redis_data:/data
 
+  watchtower:
+    image: containrrr/watchtower
+    restart: always
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: trading-app --interval 60 --cleanup
+    environment:
+      - REPO_USER=${GHCR_USERNAME}
+      - REPO_PASS=${GHCR_TOKEN}
+
 volumes:
   postgres_data:
   redis_data:

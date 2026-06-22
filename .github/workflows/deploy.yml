@@ -1,4 +1,4 @@
-name: Deploy to AWS
+name: Deploy to Server
 
 on:
   push:
@@ -39,21 +39,12 @@ jobs:
           push: true
           tags: ${{ steps.image.outputs.name }}
 
-      - name: Deploy to AWS
-        uses: appleboy/ssh-action@master
-        with:
-          host: ${{ secrets.DO_HOST }}
-          username: ubuntu
-          key: ${{ secrets.DO_SSH_KEY }}
-          script: |
-            cd ~/auto-trading
-            docker-compose pull trading-app
-            docker-compose up -d --no-deps trading-app
-            docker image prune -f
-            echo "배포 완료: $(date)"
+      # SSH 배포 제거 — 서버의 Watchtower가 60초 이내에 새 이미지를 감지해 자동 재시작
+      # 초기 서버 설정 1회 필요: .env에 GHCR_USERNAME / GHCR_TOKEN 추가 후
+      #   docker-compose up -d watchtower
 
       - name: Notify Telegram
         run: |
           curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
             -d "chat_id=${{ secrets.TELEGRAM_CHAT_ID }}" \
-            -d "text=배포 완료 (commit: ${{ github.sha }})"
+            -d "text=새 이미지 빌드 완료 — Watchtower 자동 배포 진행 중 (commit: ${{ github.sha }})"
