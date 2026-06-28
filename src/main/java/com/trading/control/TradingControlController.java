@@ -38,6 +38,14 @@ import java.util.Map;
  * GET  /trading/upbit/price/{market} 코인 현재가 (예: KRW-BTC)
  * GET  /trading/upbit/balance        업비트 KRW 잔고
  * GET  /trading/upbit/accounts       업비트 전체 보유 자산
+ *
+ * ── 관심종목 관리 (→ WatchStockController) ─────────
+ * GET    /trading/watchlist/stocks              전체 종목 조회
+ * POST   /trading/watchlist/stocks              종목 추가
+ * PUT    /trading/watchlist/stocks/{stockCode}  종목 수정
+ * DELETE /trading/watchlist/stocks/{stockCode}  종목 삭제
+ * PATCH  /trading/watchlist/stocks/{stockCode}/enable   활성화
+ * PATCH  /trading/watchlist/stocks/{stockCode}/disable  비활성화
  */
 @RestController
 @RequestMapping("/trading")

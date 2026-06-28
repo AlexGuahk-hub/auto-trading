@@ -10,6 +10,7 @@ import com.trading.kis.market.KisStockService;
 import com.trading.kis.market.StockPriceEntity;
 import com.trading.kis.market.StockPriceRepository;
 import com.trading.kis.order.KisOrderService;
+import com.trading.kis.watchlist.WatchStockService;
 import com.trading.notification.TelegramNotifier;
 import com.trading.risk.RiskManager;
 import lombok.RequiredArgsConstructor;
@@ -31,13 +32,12 @@ public class KisTradingScheduler {
     private final StockPriceRepository priceRepository;
     private final List<TradingStrategy> strategies;
     private final TradingStateManager stateManager;
+    private final WatchStockService watchStockService;
     private final TelegramNotifier notifier;
 
-    @Value("${trading.stocks}")
-    private List<String> watchList;
-
+    /** 종목별 orderQty 미설정 시 global default */
     @Value("${trading.stock-order-quantity}")
-    private int orderQuantity;
+    private int defaultOrderQuantity;
 
     // 장중 2분마다 전략 실행 (09:02~15:20, 단타 대응)
     @Scheduled(cron = "0 2-20/2 9-14,15 * * MON-FRI", zone = "Asia/Seoul")
@@ -47,7 +47,7 @@ public class KisTradingScheduler {
             return;
         }
         log.info("[KIS] 자동매매 전략 실행");
-        watchList.forEach(code -> {
+        watchStockService.getActiveStockCodes().forEach(code -> {
             try {
                 analyzeAndTrade(code);
                 Thread.sleep(200);
@@ -81,6 +81,8 @@ public class KisTradingScheduler {
                 .toList();
 
         long currentPrice = (long) prices.get(prices.size() - 1).getCurrentPrice();
+        Integer perStockQty = watchStockService.getOrderQty(stockCode);
+        int orderQty = perStockQty != null ? perStockQty : defaultOrderQuantity;
 
         // 모든 전략 신호 수집 — SELL 최우선, 그 다음 BUY (1틱에 주문 1건)
         TradeSignal finalSignal = strategies.stream()
@@ -93,14 +95,14 @@ public class KisTradingScheduler {
 
         if (finalSignal == TradeSignal.HOLD) return;
 
-        RiskCheckResult risk = riskManager.checkOrder(stockCode, orderQuantity, currentPrice);
+        RiskCheckResult risk = riskManager.checkOrder(stockCode, orderQty, currentPrice);
         if (!risk.isApproved()) {
             log.warn("[KIS] 리스크 거부 [{}]: {}", stockCode, risk.getReason());
             return;
         }
 
         if (finalSignal == TradeSignal.BUY) {
-            orderService.buyMarket(stockCode, orderQuantity);
+            orderService.buyMarket(stockCode, orderQty);
         } else {
             try {
                 AccountBalanceDto balance = stockService.getAccountBalance();

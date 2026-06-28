@@ -4,13 +4,11 @@ import com.trading.kis.market.KisStockService;
 import com.trading.kis.market.StockPriceDto;
 import com.trading.kis.market.StockPriceEntity;
 import com.trading.kis.market.StockPriceRepository;
+import com.trading.kis.watchlist.WatchStockService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
-
-import java.util.List;
 
 @Component
 @Slf4j
@@ -19,14 +17,12 @@ public class KisDataCollector {
 
     private final KisStockService stockService;
     private final StockPriceRepository priceRepository;
-
-    @Value("${trading.stocks}")
-    private List<String> watchList;
+    private final WatchStockService watchStockService;
 
     // 장중 1분마다 시세 수집 (평일 09:00~15:30)
     @Scheduled(cron = "0 * 9-15 * * MON-FRI", zone = "Asia/Seoul")
     public void collectPrices() {
-        watchList.forEach(code -> {
+        watchStockService.getActiveStockCodes().forEach(code -> {
             try {
                 StockPriceDto price = stockService.getCurrentPrice(code);
                 if (price == null) {

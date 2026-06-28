@@ -40,3 +40,16 @@ CREATE TABLE IF NOT EXISTS trade_order (
     created_at TIMESTAMP      NOT NULL DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_order_exchange ON trade_order(exchange, created_at DESC);
+
+-- 주식 관심종목 (DB 기반 동적 관리)
+CREATE TABLE IF NOT EXISTS watch_stock (
+    id           BIGSERIAL    PRIMARY KEY,
+    stock_code   VARCHAR(10)  NOT NULL UNIQUE,
+    stock_name   VARCHAR(50),
+    enabled      BOOLEAN      NOT NULL DEFAULT true,
+    order_qty    INT,                          -- null이면 global default(trading.stock-order-quantity) 사용
+    note         VARCHAR(200),
+    created_at   TIMESTAMP    NOT NULL DEFAULT NOW(),
+    updated_at   TIMESTAMP    NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_watch_stock_enabled ON watch_stock(enabled);
