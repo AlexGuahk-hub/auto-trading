@@ -53,3 +53,16 @@ CREATE TABLE IF NOT EXISTS watch_stock (
     updated_at   TIMESTAMP    NOT NULL DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_watch_stock_enabled ON watch_stock(enabled);
+
+-- 코인 관심종목 (DB 기반 동적 관리)
+CREATE TABLE IF NOT EXISTS watch_coin (
+    id                BIGSERIAL     PRIMARY KEY,
+    market            VARCHAR(20)   NOT NULL UNIQUE,  -- KRW-BTC 형식
+    coin_name         VARCHAR(50),
+    enabled           BOOLEAN       NOT NULL DEFAULT true,
+    order_amount_krw  DECIMAL(20,2),                  -- null이면 global default(trading.coin-order-amount-krw) 사용
+    note              VARCHAR(200),
+    created_at        TIMESTAMP     NOT NULL DEFAULT NOW(),
+    updated_at        TIMESTAMP     NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_watch_coin_enabled ON watch_coin(enabled);

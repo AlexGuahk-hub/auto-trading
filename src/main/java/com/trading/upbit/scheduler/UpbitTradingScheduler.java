@@ -8,6 +8,7 @@ import com.trading.risk.RiskManager;
 import com.trading.upbit.market.CoinPriceDto;
 import com.trading.upbit.market.UpbitMarketService;
 import com.trading.upbit.order.UpbitOrderService;
+import com.trading.upbit.watchlist.WatchCoinService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -27,12 +28,11 @@ public class UpbitTradingScheduler {
     private final RiskManager riskManager;
     private final TradingStateManager stateManager;
     private final TelegramNotifier notifier;
+    private final WatchCoinService watchCoinService;
 
-    @Value("${trading.coins}")
-    private List<String> coins;
-
+    /** 종목별 orderAmountKrw 미설정 시 global default */
     @Value("${trading.coin-order-amount-krw}")
-    private BigDecimal orderAmountKrw;
+    private BigDecimal defaultOrderAmountKrw;
 
     // 5분마다 전략 실행 (24시간 365일 — 코인은 시간 제한 없음)
     @Scheduled(fixedDelay = 300_000)
@@ -42,7 +42,7 @@ public class UpbitTradingScheduler {
             return;
         }
         log.info("[업비트] 자동매매 전략 실행");
-        coins.forEach(market -> {
+        watchCoinService.getActiveMarkets().forEach(market -> {
             try {
                 analyzeAndTrade(market);
                 Thread.sleep(150);
@@ -57,23 +57,24 @@ public class UpbitTradingScheduler {
     }
 
     private void analyzeAndTrade(String market) {
-        // 1시간봉 48개 조회 (2일치)
         List<CoinPriceDto> candles = marketService.getMinuteCandles(market, 60, 48);
         if (candles.size() < 20) return;
 
-        // 변동성 돌파 전략 (코인에 특화)
         TradeSignal signal = volatilityBreakout(market, candles);
         if (signal == TradeSignal.HOLD) return;
 
+        BigDecimal perCoinAmount = watchCoinService.getOrderAmountKrw(market);
+        BigDecimal orderAmount = perCoinAmount != null ? perCoinAmount : defaultOrderAmountKrw;
+
         double currentPrice = candles.get(candles.size() - 1).getCurrentPrice();
-        RiskCheckResult risk = riskManager.checkCoinOrder(market, orderAmountKrw, (long) currentPrice);
+        RiskCheckResult risk = riskManager.checkCoinOrder(market, orderAmount, (long) currentPrice);
         if (!risk.isApproved()) {
             log.warn("[업비트] 리스크 거부 [{}]: {}", market, risk.getReason());
             return;
         }
 
         if (signal == TradeSignal.BUY) {
-            orderService.buyMarket(market, orderAmountKrw);
+            orderService.buyMarket(market, orderAmount);
         } else {
             BigDecimal holding = marketService.getHoldingVolume(market);
             if (holding.compareTo(BigDecimal.ZERO) > 0) {
@@ -97,5 +98,4 @@ public class UpbitTradingScheduler {
         }
         return TradeSignal.HOLD;
     }
-
 }

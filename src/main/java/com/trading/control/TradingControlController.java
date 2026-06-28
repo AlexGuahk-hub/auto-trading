@@ -46,6 +46,14 @@ import java.util.Map;
  * DELETE /trading/watchlist/stocks/{stockCode}  종목 삭제
  * PATCH  /trading/watchlist/stocks/{stockCode}/enable   활성화
  * PATCH  /trading/watchlist/stocks/{stockCode}/disable  비활성화
+ *
+ * ── 코인 관심종목 관리 (→ WatchCoinController) ──────
+ * GET    /trading/watchlist/coins              전체 종목 조회
+ * POST   /trading/watchlist/coins              종목 추가
+ * PUT    /trading/watchlist/coins/{market}     종목 수정
+ * DELETE /trading/watchlist/coins/{market}     종목 삭제
+ * PATCH  /trading/watchlist/coins/{market}/enable   활성화
+ * PATCH  /trading/watchlist/coins/{market}/disable  비활성화
  */
 @RestController
 @RequestMapping("/trading")

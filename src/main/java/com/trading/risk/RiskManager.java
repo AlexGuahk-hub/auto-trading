@@ -179,8 +179,10 @@ public class RiskManager {
             if (referenceAsset <= 0) return false;
             double lossRatio = totalLoss.doubleValue() / referenceAsset;
             if (lossRatio > dailyLossLimit) {
-                log.warn("[리스크] {} 일일 손실 한도 초과: {:.1f}% (한도 {:.1f}%)",
-                        exchange, lossRatio * 100, dailyLossLimit * 100);
+                log.warn("[리스크] {} 일일 손실 한도 초과: {}% (한도 {}%)",
+                        exchange,
+                        String.format("%.1f", lossRatio * 100),
+                        String.format("%.1f", dailyLossLimit * 100));
                 return true;
             }
         } catch (Exception e) {
